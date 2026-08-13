@@ -1728,9 +1728,9 @@ function setupImporter(){
 }
 
 /* ==========================================================================
-   11. GESTIÓN (borrar bacterias)
+   11. GESTIÓN (borrar y EDITAR bacterias)
    ========================================================================== */
-const ManageState = { search:'' };
+const ManageState = { search:'', editingId:null };
 
 function setupManagement(){
   document.getElementById('manageSearchInput')?.addEventListener('input', (e) => {
@@ -1742,6 +1742,12 @@ function setupManagement(){
 function renderManageList(){
   const container = document.getElementById('manageBacteriaList');
   if (!container) return;
+  
+  if (ManageState.editingId){
+    renderEditForm();
+    return;
+  }
+  
   const term = normalizeText(ManageState.search);
   let list = AppState.bacteria.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''));
   if (term) list = list.filter(b => normalizeText([b.name, b.grupo].join(' ')).includes(term));
@@ -1762,9 +1768,214 @@ function renderManageList(){
           <span>${escapeHTML(b.grupo || 'Sin grupo')}</span>
         </div>
       </div>
-      <button class="manage-del-btn" onclick="deleteBacteriaManaged('${b.id}')">🗑 Eliminar</button>
+      <div style="display:flex; gap:.5rem;">
+        <button class="btn" style="font-size:.8rem; padding:.4rem .6rem;" onclick="startEditBacteria('${b.id}')">✏️ Editar</button>
+        <button class="manage-del-btn" onclick="deleteBacteriaManaged('${b.id}')">🗑 Eliminar</button>
+      </div>
     </div>`;
   }).join('');
+}
+
+function startEditBacteria(id){
+  ManageState.editingId = id;
+  renderManageList();
+}
+
+function renderEditForm(){
+  const container = document.getElementById('manageBacteriaList');
+  if (!container) return;
+  
+  const b = AppState.bacteria.find(x => x.id === ManageState.editingId);
+  if (!b) return;
+  
+  const rb = ribbonBadge(b);
+  
+  let html = `
+    <div class="sheet-view" style="padding: 1.5rem;">
+      <div style="margin-bottom: 1.5rem; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
+        <div>
+          <h2 style="font-size:1.4rem; margin-bottom:.3rem;">${escapeHTML(b.name)}</h2>
+          <span class="badge-type ${rb.cls}">${tipoIcon(b.tipo)} ${escapeHTML(rb.text)}</span>
+        </div>
+        <button class="btn" onclick="ManageState.editingId=null; renderManageList();">← Volver</button>
+      </div>
+      
+      <div class="section-block" style="margin-bottom:1rem;">
+        <h4>📋 Información General</h4>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:1rem; margin-top:1rem;">
+          <div>
+            <label style="font-weight:600; font-size:.85rem;">Nombre</label>
+            <input type="text" id="editName" class="btn" value="${escapeHTML(b.name)}" style="width:100%; margin-top:.3rem;">
+          </div>
+          <div>
+            <label style="font-weight:600; font-size:.85rem;">Tipo</label>
+            <select id="editTipo" class="btn" style="width:100%; margin-top:.3rem;">
+              <option value="bacteria" ${b.tipo === 'bacteria' ? 'selected' : ''}>🧫 Bacteria</option>
+              <option value="virus" ${b.tipo === 'virus' ? 'selected' : ''}>🦠 Virus</option>
+              <option value="parasito" ${b.tipo === 'parasito' ? 'selected' : ''}>🪱 Parásito</option>
+              <option value="hongo" ${b.tipo === 'hongo' ? 'selected' : ''}>🍄 Hongo</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-weight:600; font-size:.85rem;">Grupo</label>
+            <input type="text" id="editGrupo" class="btn" value="${escapeHTML(b.grupo || '')}" style="width:100%; margin-top:.3rem;">
+          </div>
+          <div>
+            <label style="font-weight:600; font-size:.85rem;">Gram</label>
+            <select id="editGram" class="btn" style="width:100%; margin-top:.3rem;">
+              <option value="">Sin especificar</option>
+              <option value="Gram positivo" ${b.gram === 'Gram positivo' ? 'selected' : ''}>Gram positivo</option>
+              <option value="Gram negativo" ${b.gram === 'Gram negativo' ? 'selected' : ''}>Gram negativo</option>
+              <option value="Ácido-alcohol resistente" ${b.gram === 'Ácido-alcohol resistente' ? 'selected' : ''}>Ácido-alcohol resistente</option>
+              <option value="Variable" ${b.gram === 'Variable' ? 'selected' : ''}>Variable</option>
+              <option value="No aplica" ${b.gram === 'No aplica' ? 'selected' : ''}>No aplica</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      
+      <div class="section-block" style="margin-bottom:1rem;">
+        <h4>📝 Campos de Información</h4>
+        <div id="fieldsContainer" style="display:flex; flex-direction:column; gap:1.2rem; margin-top:1rem;">
+  `;
+  
+  FIELD_DEFS.forEach(f => {
+    const value = b[f.key] || '';
+    html += `
+      <div style="border-left:3px solid #16a34a; padding-left:1rem;">
+        <label style="font-weight:600; font-size:.9rem; display:flex; align-items:center; gap:.4rem;">
+          ${f.icon} ${f.label}
+          <button type="button" class="btn" style="margin-left:auto; padding:.3rem .5rem; font-size:.8rem;" onclick="deleteBacteriaField('${f.key}')">Borrar este campo</button>
+        </label>
+        <textarea 
+          id="field_${f.key}" 
+          class="btn code-input" 
+          style="margin-top:.5rem; min-height:100px; width:100%;"
+          placeholder="Ingresá la información..."
+        >${escapeHTML(value)}</textarea>
+      </div>
+    `;
+  });
+  
+  html += `
+        </div>
+      </div>
+      
+      <div class="section-block" style="margin-bottom:1rem;">
+        <h4>➕ Agregar Campo Personalizado</h4>
+        <div style="display:flex; gap:.5rem; margin-top:1rem; flex-wrap:wrap;">
+          <input type="text" id="newFieldName" class="btn" placeholder="Nombre del campo (ej: Reservorio)" style="flex:1; min-width:200px;">
+          <input type="text" id="newFieldIcon" class="btn" placeholder="Emoji (ej: 🏥)" style="width:60px;">
+          <button class="btn gold" onclick="addCustomField()">Agregar campo</button>
+        </div>
+        <div id="customFieldsContainer" style="margin-top:1rem;">
+  `;
+  
+  // Mostrar campos personalizados (campos que no están en FIELD_DEFS)
+  const standardKeys = FIELD_DEFS.map(f => f.key);
+  Object.keys(b).forEach(key => {
+    if (!standardKeys.includes(key) && !['id', 'name', 'tipo', 'grupo', 'gram', 'image', 'favorito', 'estado', 'isDemo'].includes(key)) {
+      const value = b[key] || '';
+      html += `
+        <div style="border-left:3px solid #f0c66b; padding-left:1rem; margin-bottom:1rem;">
+          <label style="font-weight:600; font-size:.9rem; display:flex; align-items:center; gap:.4rem;">
+            ⭐ ${escapeHTML(key)}
+            <button type="button" class="btn" style="margin-left:auto; padding:.3rem .5rem; font-size:.8rem;" onclick="deleteCustomField('${key}')">Borrar</button>
+          </label>
+          <textarea 
+            id="custom_${key}" 
+            class="btn code-input" 
+            style="margin-top:.5rem; min-height:100px; width:100%;"
+            placeholder="Contenido del campo..."
+          >${escapeHTML(value)}</textarea>
+        </div>
+      `;
+    }
+  });
+  
+  html += `
+        </div>
+      </div>
+      
+      <div class="controls-bar">
+        <button class="btn gold" onclick="saveEditedBacteria()">💾 Guardar cambios</button>
+        <button class="btn" onclick="ManageState.editingId=null; renderManageList();">Cancelar</button>
+      </div>
+    </div>
+  `;
+  
+  container.innerHTML = html;
+}
+
+function addCustomField(){
+  const name = document.getElementById('newFieldName')?.value.trim();
+  const icon = document.getElementById('newFieldIcon')?.value.trim() || '⭐';
+  
+  if (!name){
+    alert('Por favor ingresá un nombre para el campo');
+    return;
+  }
+  
+  if (ManageState.editingId){
+    const b = AppState.bacteria.find(x => x.id === ManageState.editingId);
+    if (b){
+      b[name] = '';
+      renderEditForm();
+      document.getElementById(`custom_${name}`)?.focus();
+    }
+  }
+  document.getElementById('newFieldName').value = '';
+  document.getElementById('newFieldIcon').value = '';
+}
+
+function deleteCustomField(key){
+  if (!confirm(`¿Borrar el campo "${key}"?`)) return;
+  if (ManageState.editingId){
+    const b = AppState.bacteria.find(x => x.id === ManageState.editingId);
+    if (b) delete b[key];
+    renderEditForm();
+  }
+}
+
+function deleteBacteriaField(key){
+  if (!confirm(`¿Borrar el campo "${key}"? Se eliminarán todos sus datos.`)) return;
+  if (ManageState.editingId){
+    const b = AppState.bacteria.find(x => x.id === ManageState.editingId);
+    if (b) b[key] = '';
+    renderEditForm();
+  }
+}
+
+async function saveEditedBacteria(){
+  const b = AppState.bacteria.find(x => x.id === ManageState.editingId);
+  if (!b) return;
+  
+  // Guardar información general
+  b.name = document.getElementById('editName')?.value.trim() || b.name;
+  b.tipo = document.getElementById('editTipo')?.value || 'bacteria';
+  b.grupo = document.getElementById('editGrupo')?.value.trim() || '';
+  b.gram = document.getElementById('editGram')?.value || '';
+  
+  // Guardar campos estándar
+  FIELD_DEFS.forEach(f => {
+    b[f.key] = document.getElementById(`field_${f.key}`)?.value || '';
+  });
+  
+  // Guardar campos personalizados
+  const standardKeys = FIELD_DEFS.map(f => f.key);
+  Object.keys(b).forEach(key => {
+    if (!standardKeys.includes(key) && !['id', 'name', 'tipo', 'grupo', 'gram', 'image', 'favorito', 'estado', 'isDemo'].includes(key)) {
+      const textarea = document.getElementById(`custom_${key}`);
+      if (textarea) b[key] = textarea.value || '';
+    }
+  });
+  
+  b.isDemo = false;
+  await saveToStorage();
+  refreshAllViews();
+  ManageState.editingId = null;
+  renderManageList();
+  alert('✅ Cambios guardados correctamente');
 }
 
 async function deleteBacteriaManaged(id){
