@@ -1405,40 +1405,85 @@ function downloadComparePdf(){
   }
 
   const fieldsUsed = FIELD_DEFS.filter(f => items.some(b => b[f.key] && String(b[f.key]).trim()));
-  const title = `Comparación: ${items.map(b => b.name).join(' vs ')}`;
   
   const htmlContent = `
     <!DOCTYPE html>
     <html lang="es">
     <head>
       <meta charset="UTF-8">
-      <title>${title}</title>
+      <title>Comparación</title>
       <style>
-        body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
-        h1 { color: #122019; border-bottom: 3px solid #16a34a; padding-bottom: 10px; }
-        h2 { color: #1c4228; margin-top: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-        th, td { border: 1px solid #d7ecdc; padding: 10px; text-align: left; }
-        th { background-color: #eaf7ee; font-weight: bold; color: #15803d; }
+        * { margin: 0; padding: 0; }
+        body { 
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+          color: #333;
+          font-size: 11px;
+          line-height: 1.3;
+        }
+        table { 
+          width: 100%; 
+          border-collapse: collapse; 
+          margin: 0;
+          page-break-inside: avoid;
+        }
+        th { 
+          background-color: #eaf7ee; 
+          font-weight: bold; 
+          color: #15803d;
+          border: 1px solid #d7ecdc;
+          padding: 6px 4px;
+          text-align: left;
+          font-size: 10px;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+        }
+        td { 
+          border: 1px solid #d7ecdc; 
+          padding: 6px 4px;
+          font-size: 10px;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+        }
         tr:nth-child(even) { background-color: #f9fdf9; }
-        .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
-        .bacteria-name { font-style: italic; font-weight: bold; }
+        tr:nth-child(odd) { background-color: #ffffff; }
+        .badge { 
+          display: inline-block; 
+          padding: 2px 4px; 
+          border-radius: 3px; 
+          font-size: 9px; 
+          font-weight: bold;
+          background-color: #e6f7ea;
+          color: #15803d;
+          border: 1px solid #79c496;
+        }
+        .bacteria-name { 
+          font-style: italic; 
+          font-weight: bold; 
+          font-size: 11px;
+        }
+        .field-label {
+          font-weight: bold;
+          background-color: #f0f0f0;
+          width: 140px;
+          min-width: 140px;
+          max-width: 140px;
+        }
         .empty-cell { color: #999; }
-        p { font-size: 12px; color: #666; margin-top: 20px; }
+        @media print {
+          table { page-break-inside: avoid; }
+          tbody tr { page-break-inside: avoid; }
+        }
       </style>
     </head>
     <body>
-      <h1>${title}</h1>
-      <p><strong>Generado:</strong> ${new Date().toLocaleString('es-AR')}</p>
-      
       <table>
         <thead>
           <tr>
-            <th style="width: 150px;">Microorganismo</th>
+            <th style="width: 140px; min-width: 140px;">Microorganismo</th>
             ${items.map(b => `<th class="bacteria-name">${b.name}</th>`).join('')}
           </tr>
           <tr>
-            <th>Clasificación</th>
+            <th class="field-label">Clasificación</th>
             ${items.map(b => {
               const rb = ribbonBadge(b);
               return `<td><span class="badge">${tipoIcon(b.tipo)} ${rb.text}</span></td>`;
@@ -1448,26 +1493,25 @@ function downloadComparePdf(){
         <tbody>
           ${fieldsUsed.map(f => `
             <tr>
-              <th>${f.icon} ${f.label}</th>
+              <th class="field-label">${f.icon} ${f.label}</th>
               ${items.map(b => `<td>${b[f.key] && String(b[f.key]).trim() ? b[f.key] : '<span class="empty-cell">—</span>'}</td>`).join('')}
             </tr>`).join('')}
         </tbody>
       </table>
-      
-      <p><em>Documento generado desde Resumen PAD · Cuadros Sinópticos de Bacterias</em></p>
     </body>
     </html>
   `;
 
-  const element = document.createElement('div');
-  element.innerHTML = htmlContent;
+  const filename = items.length <= 3 
+    ? `comparacion-${items.map(b => b.name.substring(0, 10)).join('-')}.pdf`
+    : `comparacion-${items.length}-microorganismos.pdf`;
   
   const opt = {
-    margin: 10,
-    filename: `comparacion-${items.map(b => b.name.substring(0, 8)).join('-')}.pdf`,
-    image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2 },
-    jsPDF: { orientation: 'landscape', unit: 'mm', format: 'a4' }
+    margin: [8, 6, 8, 6],
+    filename: filename,
+    image: { type: 'jpeg', quality: 0.95 },
+    html2canvas: { scale: 2, useCORS: true, logging: false },
+    jsPDF: { orientation: 'landscape', unit: 'mm', format: 'a4', compress: true }
   };
 
   html2pdf().set(opt).from(htmlContent).save();
